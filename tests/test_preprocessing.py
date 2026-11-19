@@ -1,5 +1,7 @@
 """Tests for preprocessing, arm validation, and synthetic uplift DGP."""
 
+import math
+
 import pandas as pd
 import pytest
 
@@ -124,3 +126,34 @@ def test_preprocess_still_drops_missing_feature_rows_silently():
     )
     cleaned = preprocess_data(df)
     assert len(cleaned) == 3
+
+
+def test_load_data_reports_missing_file_by_name(tmp_path):
+    from src.utils import load_data
+
+    missing = tmp_path / "nope.csv"
+    with pytest.raises(FileNotFoundError, match="nope.csv"):
+        load_data(missing)
+
+
+def test_load_data_reads_csv(tmp_path):
+    from src.utils import load_data
+
+    path = tmp_path / "data.csv"
+    path.write_text("outcome,treatment,x1\n1,0,0.5\n0,1,1.5\n")
+    df = load_data(path)
+    assert list(df.columns) == ["outcome", "treatment", "x1"]
+    assert len(df) == 2
+
+
+def test_run_benchmark_returns_one_result_per_requested_model():
+    from config import Config
+    from src.pipeline import run_benchmark
+
+    df, results = run_benchmark(n_samples=200, config=Config(), model_types=["S-learner"])
+    assert list(results) == ["S-learner"]
+    assert len(df) == 200
+    assert "qini" in df.columns or "true_cate" in df.columns
+    result = results["S-learner"]
+    assert math.isfinite(result.report.qini_coefficient)
+    assert result.report.n_samples > 0

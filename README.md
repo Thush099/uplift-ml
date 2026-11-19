@@ -75,6 +75,22 @@ python main.py \
 
 Use `--model-type all` to benchmark all three meta-learners on your CSV.
 
+### Benchmark and modelling flags
+
+| Flag | Default | Meaning |
+|---|---:|---|
+| `--demo` | off | Run the synthetic heterogeneous CATE benchmark |
+| `--n-samples` | `3000` | Synthetic sample count for benchmark mode |
+| `--data-path` | none | Input CSV dataset (omit for the synthetic benchmark) |
+| `--model-type` | — | `S-learner`, `T-learner`, `X-learner`, or `all` |
+| `--outcome-var` | `outcome` | Outcome column name |
+| `--treatment-var` | `treatment` | Binary `{0, 1}` treatment column name |
+| `--seed` | `42` | Random seed |
+
+Outcome and treatment columns must be finite: `nan`/`inf` entries are rejected with
+the offending row positions instead of being silently dropped, because dropping them
+could remove a treatment arm and yield an uninterpretable Qini score.
+
 ### Gating a pipeline with `--min-qini`
 
 By default the CLI always exits `0`, so a CI job cannot tell a healthy model from a
