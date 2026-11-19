@@ -1,6 +1,7 @@
 """Causal uplift evaluation metrics: ATE, uplift-by-decile, Qini, AUUC, and PEHE."""
 
 from dataclasses import asdict, dataclass, field
+from numbers import Integral
 from typing import Any, Dict, List, Optional
 
 import numpy as np
@@ -76,9 +77,9 @@ class UpliftEvaluator:
     """Computes ranking, calibration, and heterogeneous effect metrics for uplift predictions."""
 
     def __init__(self, n_deciles: int = 10) -> None:
-        if n_deciles < 2:
-            raise ValueError("n_deciles must be at least 2.")
-        self.n_deciles = n_deciles
+        if isinstance(n_deciles, bool) or not isinstance(n_deciles, Integral) or n_deciles < 2:
+            raise ValueError("n_deciles must be an integer >= 2.")
+        self.n_deciles = int(n_deciles)
 
     def evaluate(
         self,

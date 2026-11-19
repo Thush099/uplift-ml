@@ -8,6 +8,12 @@ import pytest
 from src.evaluation import UpliftEvaluator
 
 
+@pytest.mark.parametrize("n_deciles", [1, 2.5, float("nan"), True])
+def test_evaluator_rejects_invalid_decile_count(n_deciles):
+    with pytest.raises(ValueError, match="n_deciles must be an integer >= 2"):
+        UpliftEvaluator(n_deciles=n_deciles)
+
+
 def test_evaluator_perfect_vs_reversed_ranking_and_pehe():
     rng = np.random.default_rng(9)
     n = 400
