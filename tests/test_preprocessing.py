@@ -84,3 +84,43 @@ def test_synthetic_generator_contains_distinct_causal_subgroups():
     assert abs(means["sure_things"]) < 0.10
     assert means["sleeping_dogs"] < -0.20
     assert set(df["treatment"].unique()) == {0, 1}
+
+
+def test_preprocess_rejects_non_finite_outcome_and_treatment_with_locations():
+    df_nan_outcome = pd.DataFrame(
+        {"x1": [1.0, 2.0, 3.0], "treatment": [0, 1, 0], "outcome": [0.0, float("nan"), 1.0]}
+    )
+    with pytest.raises(ValueError, match=r"Column 'outcome' contains non-finite value\(s\) at row position\(s\) \[1\]"):
+        preprocess_data(df_nan_outcome)
+
+    df_inf_outcome = pd.DataFrame(
+        {"x1": [1.0, 2.0], "treatment": [0, 1], "outcome": [float("inf"), 1.0]}
+    )
+    with pytest.raises(ValueError, match=r"Column 'outcome' contains non-finite value\(s\) at row position\(s\) \[0\]"):
+        preprocess_data(df_inf_outcome)
+
+    df_nan_treatment = pd.DataFrame(
+        {"x1": [1.0, 2.0], "treatment": [float("nan"), 1], "outcome": [0.0, 1.0]}
+    )
+    with pytest.raises(ValueError, match=r"Column 'treatment' contains non-finite value"):
+        preprocess_data(df_nan_treatment)
+
+
+def test_preprocess_rejects_infinite_feature_values_with_locations():
+    df_inf_feature = pd.DataFrame(
+        {"x1": [1.0, float("-inf"), 3.0], "treatment": [0, 1, 0], "outcome": [0.0, 1.0, 1.0]}
+    )
+    with pytest.raises(ValueError, match=r"Feature column 'x1' contains infinite value\(s\) at row position\(s\) \[1\]"):
+        preprocess_data(df_inf_feature)
+
+
+def test_preprocess_still_drops_missing_feature_rows_silently():
+    df = pd.DataFrame(
+        {
+            "x1": [1.0, float("nan"), 3.0, 4.0],
+            "treatment": [0, 1, 0, 1],
+            "outcome": [0.0, 1.0, 1.0, 1.0],
+        }
+    )
+    cleaned = preprocess_data(df)
+    assert len(cleaned) == 3

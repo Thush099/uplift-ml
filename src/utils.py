@@ -48,9 +48,34 @@ def preprocess_data(
         raise ValueError("At least one feature column is required for uplift modeling.")
 
     cols_to_keep = selected_features + [treatment_var, outcome_var]
-    cleaned = data[cols_to_keep].dropna().copy()
+    subset = data[cols_to_keep]
+
+    # Outcome and treatment define the analysis: non-finite values there are data
+    # errors, not droppable missingness, and silent row loss could remove an arm.
+    for col in (treatment_var, outcome_var):
+        values = pd.to_numeric(subset[col], errors="raise").to_numpy(dtype=float)
+        non_finite = np.flatnonzero(~np.isfinite(values))
+        if non_finite.size:
+            raise ValueError(
+                f"Column '{col}' contains non-finite value(s) at row position(s) "
+                f"{non_finite[:10].tolist()}."
+            )
+
+    cleaned = subset.dropna().copy()
     if cleaned.empty:
         raise ValueError("No rows remain after dropping missing values.")
+
+    numeric_features = [
+        c for c in selected_features if pd.api.types.is_numeric_dtype(subset[c])
+    ]
+    for col in numeric_features:
+        values = cleaned[col].to_numpy(dtype=float)
+        inf_rows = np.flatnonzero(np.isinf(values))
+        if inf_rows.size:
+            raise ValueError(
+                f"Feature column '{col}' contains infinite value(s) at row "
+                f"position(s) {inf_rows[:10].tolist()}."
+            )
 
     # Normalize boolean treatments cleanly, then enforce binary {0, 1}
     if pd.api.types.is_bool_dtype(cleaned[treatment_var]):
