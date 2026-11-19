@@ -1,5 +1,7 @@
 """Tests for UpliftEvaluator metrics (ATE, deciles, Qini, AUUC, PEHE)."""
 
+import json
+
 import numpy as np
 import pytest
 
@@ -68,6 +70,29 @@ def test_evaluator_rejects_non_finite_values(argument, bad_values, expected_mess
 
     with pytest.raises(ValueError, match=expected_message):
         UpliftEvaluator().evaluate(**inputs)
+
+
+def test_small_imbalanced_groups_report_unavailable_bin_uplift_as_none():
+    report = UpliftEvaluator(n_deciles=10).evaluate(
+        y_true=np.array([1.0, 0.0, 1.0, 0.0, 1.0]),
+        treatment=np.array([1, 0, 1, 0, 1]),
+        uplift_pred=np.array([0.9, 0.8, 0.7, 0.6, 0.5]),
+    )
+
+    assert len(report.uplift_by_decile) == 5
+    assert all(decile.n_samples == 1 for decile in report.uplift_by_decile)
+    assert all(
+        decile.mean_outcome_treated is None
+        for decile in report.uplift_by_decile
+        if decile.n_treated == 0
+    )
+    assert all(
+        decile.mean_outcome_control is None
+        for decile in report.uplift_by_decile
+        if decile.n_control == 0
+    )
+    assert all(decile.observed_uplift is None for decile in report.uplift_by_decile)
+    json.dumps(report.to_dict(), allow_nan=False)
 
 
 def test_evaluator_rejects_missing_arm():

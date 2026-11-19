@@ -44,7 +44,7 @@ Causal uplift modeling toolkit implementing **S-Learner**, **T-Learner**, and **
 ### Evaluation Metrics (`UpliftEvaluator`)
 
 - **Predicted & Observed ATE**: Mean predicted CATE vs difference-in-means $\bar{Y}_{T=1} - \bar{Y}_{T=0}$.
-- **Uplift-by-Decile**: Ranked decile breakdown from highest predicted uplift (Decile 1) to lowest (Decile 10).
+- **Uplift-by-Decile**: Ranked decile breakdown from highest predicted uplift (Decile 1) to lowest (Decile 10). Observed uplift is `n/a` when a bin lacks either treatment arm; the within-bin comparison is unestimable, not zero.
 - **Qini Coefficient**: Area above random targeting divided by optimal-minus-random Qini area.
 - **AUUC**: Area Under the Uplift Curve (normalized per sample, with gain over random baseline).
 - **PEHE**: Precision in Estimation of Heterogeneous Effect ($\sqrt{\text{mean}((\hat{\tau} - \tau)^2)}$) when ground-truth CATE is available.

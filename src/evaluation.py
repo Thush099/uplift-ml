@@ -22,9 +22,9 @@ class DecileMetric:
     n_treated: int
     n_control: int
     mean_predicted_uplift: float
-    mean_outcome_treated: float
-    mean_outcome_control: float
-    observed_uplift: float
+    mean_outcome_treated: Optional[float]
+    mean_outcome_control: Optional[float]
+    observed_uplift: Optional[float]
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -227,9 +227,13 @@ class UpliftEvaluator:
             c_mask = t_bin == 0
             n_t = int(np.sum(t_mask))
             n_c = int(np.sum(c_mask))
-            y_t_mean = float(np.mean(y_bin[t_mask])) if n_t > 0 else float("nan")
-            y_c_mean = float(np.mean(y_bin[c_mask])) if n_c > 0 else float("nan")
-            obs_uplift = y_t_mean - y_c_mean if (n_t > 0 and n_c > 0) else float("nan")
+            y_t_mean = float(np.mean(y_bin[t_mask])) if n_t > 0 else None
+            y_c_mean = float(np.mean(y_bin[c_mask])) if n_c > 0 else None
+            obs_uplift = (
+                y_t_mean - y_c_mean
+                if y_t_mean is not None and y_c_mean is not None
+                else None
+            )
             deciles.append(
                 DecileMetric(
                     decile=idx,

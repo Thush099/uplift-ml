@@ -10,6 +10,21 @@ from src.utils import generate_synthetic_uplift_data
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 
+def test_cli_decile_report_marks_unavailable_observed_uplift_as_na(capsys):
+    from main import _format_deciles
+    from src.evaluation import UpliftEvaluator
+
+    report = UpliftEvaluator(n_deciles=10).evaluate(
+        y_true=[1.0, 0.0, 1.0, 0.0, 1.0],
+        treatment=[1, 0, 1, 0, 1],
+        uplift_pred=[0.9, 0.8, 0.7, 0.6, 0.5],
+    )
+
+    output = _format_deciles("small", report)
+    assert "n/a" in output
+    assert "nan" not in output
+
+
 def test_cli_default_benchmark_smoke_run(capsys):
     exit_code = main(["--demo", "--n-samples", "600"])
     captured = capsys.readouterr()

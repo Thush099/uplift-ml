@@ -27,9 +27,11 @@ def _format_benchmark_table(results: Dict[str, PipelineResult]) -> str:
         pehe_str = f"{r.pehe:.4f}" if r.pehe is not None else "n/a"
         top_u = r.uplift_by_decile[0].observed_uplift
         bot_u = r.uplift_by_decile[-1].observed_uplift
+        top_u_str = f"{top_u:+.4f}" if top_u is not None else "n/a"
+        bot_u_str = f"{bot_u:+.4f}" if bot_u is not None else "n/a"
         lines.append(
             f"{model_name:<12} {r.predicted_ate:>+10.4f} {true_ate_str:>10} {r.observed_ate:>+10.4f} "
-            f"{pehe_str:>8} {r.qini_coefficient:>8.4f} {r.auuc:>8.4f} {top_u:>+12.4f} {bot_u:>+12.4f}"
+            f"{pehe_str:>8} {r.qini_coefficient:>8.4f} {r.auuc:>8.4f} {top_u_str:>12} {bot_u_str:>12}"
         )
     return "\n".join(lines)
 
@@ -57,9 +59,10 @@ def _format_deciles(model_name: str, report: EvaluationReport) -> str:
         "-" * 58,
     ]
     for d in report.uplift_by_decile:
+        observed = f"{d.observed_uplift:+.4f}" if d.observed_uplift is not None else "n/a"
         lines.append(
             f"{d.decile:>6} {d.n_samples:>6} {d.n_treated:>8} {d.n_control:>8} "
-            f"{d.mean_predicted_uplift:>+12.4f} {d.observed_uplift:>+12.4f}"
+            f"{d.mean_predicted_uplift:>+12.4f} {observed:>12}"
         )
     return "\n".join(lines)
 
