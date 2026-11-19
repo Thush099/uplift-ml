@@ -75,6 +75,17 @@ python main.py \
 
 Use `--model-type all` to benchmark all three meta-learners on your CSV.
 
+### Gating a pipeline with `--min-qini`
+
+By default the CLI always exits `0`, so a CI job cannot tell a healthy model from a
+regressed one. `--min-qini FLOAT` exits non-zero when any evaluated model's Qini
+coefficient falls below the threshold, and the threshold must be a finite number
+(Qini is normalized against an oracle ordering, so it may legitimately be negative):
+
+```bash
+python main.py --data-path path/to/experiment.csv --min-qini 0.15
+```
+
 ### Benchmark Output (`python main.py`)
 
 ```text

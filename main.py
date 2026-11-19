@@ -1,6 +1,7 @@
 """CLI entry point for causal uplift modeling and S/T/X-learner benchmarking."""
 
 import argparse
+import math
 from typing import Dict, Optional
 
 import pandas as pd
@@ -114,7 +115,32 @@ def build_parser() -> argparse.ArgumentParser:
         default=42,
         help="Random seed (default: 42).",
     )
+    parser.add_argument(
+        "--min-qini",
+        type=float,
+        default=None,
+        help=(
+            "Exit non-zero when any evaluated model's Qini coefficient is below "
+            "this threshold, so the benchmark can gate a CI job."
+        ),
+    )
     return parser
+
+
+def exit_code_for(reports: list[EvaluationReport], min_qini: Optional[float]) -> int:
+    """Map evaluation reports to a process exit code under a Qini gate.
+
+    Returns 0 when no threshold is given or every model meets it, and 1 when any
+    model's Qini coefficient is below the threshold. The threshold must be a
+    finite number; anything else raises ``ValueError`` so a typo cannot silently
+    disable gating. Qini coefficients are normalized against an oracle ordering,
+    so unlike a probability they may legitimately be negative.
+    """
+    if min_qini is None:
+        return 0
+    if not math.isfinite(min_qini):
+        raise ValueError(f"min_qini must be finite; got {min_qini!r}")
+    return 1 if any(r.qini_coefficient < min_qini for r in reports) else 0
 
 
 def main(argv: Optional[list[str]] = None) -> int:
@@ -128,7 +154,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         print(_format_benchmark_table(results))
         print(_format_subgroup_summary(df))
         print(_format_deciles("X-learner", results["X-learner"].report))
-        return 0
+        return exit_code_for([res.report for res in results.values()], args.min_qini)
 
     raw_df = load_data(args.data_path)
     true_cate = raw_df["true_cate"].to_numpy(dtype=float) if "true_cate" in raw_df.columns else None
@@ -148,7 +174,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         }
         print(_format_benchmark_table(results))
         print(_format_deciles("X-learner", results["X-learner"].report))
-        return 0
+        return exit_code_for([res.report for res in results.values()], args.min_qini)
 
     config = Config(
         data_path=args.data_path,
@@ -172,7 +198,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     if r.pehe is not None:
         print(f"PEHE (RMSE vs true CATE)={r.pehe:.4f}")
     print(_format_deciles(args.model_type, r))
-    return 0
+    return exit_code_for([r], args.min_qini)
 
 
 if __name__ == "__main__":
