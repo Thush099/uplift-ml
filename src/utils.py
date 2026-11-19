@@ -39,6 +39,10 @@ def preprocess_data(
         if missing:
             raise ValueError(f"Feature column(s) not found in DataFrame: {missing}")
         selected_features = list(feature_cols)
+        if outcome_var in selected_features or treatment_var in selected_features:
+            raise ValueError("Outcome and treatment columns cannot be used as feature columns.")
+        if len(selected_features) != len(set(selected_features)):
+            raise ValueError("Feature columns must not contain duplicates.")
 
     if not selected_features:
         raise ValueError("At least one feature column is required for uplift modeling.")

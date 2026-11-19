@@ -49,6 +49,27 @@ def test_evaluator_handles_tied_predictions_and_missing_true_cate():
     assert report.predicted_ate == pytest.approx(0.1)
 
 
+@pytest.mark.parametrize(
+    ("argument", "bad_values", "expected_message"),
+    [
+        ("y_true", [np.nan, 0.0], "y_true must contain only finite values."),
+        ("uplift_pred", [0.2, np.inf], "uplift_pred must contain only finite values."),
+        ("true_cate", [0.1, np.nan], "true_cate must contain only finite values."),
+    ],
+)
+def test_evaluator_rejects_non_finite_values(argument, bad_values, expected_message):
+    inputs = {
+        "y_true": np.array([1.0, 0.0]),
+        "treatment": np.array([1, 0]),
+        "uplift_pred": np.array([0.2, -0.1]),
+        "true_cate": np.array([0.2, -0.1]),
+    }
+    inputs[argument] = np.asarray(bad_values)
+
+    with pytest.raises(ValueError, match=expected_message):
+        UpliftEvaluator().evaluate(**inputs)
+
+
 def test_evaluator_rejects_missing_arm():
     with pytest.raises(ValueError, match="Both control"):
         UpliftEvaluator().evaluate(

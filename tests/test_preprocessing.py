@@ -32,6 +32,27 @@ def test_preprocess_preserves_control_and_zero_outcome_rows():
     assert len(feature_names) == 3
 
 
+@pytest.mark.parametrize(
+    ("feature_cols", "message"),
+    [
+        (["outcome", "x1"], "cannot be used as feature columns"),
+        (["treatment", "x1"], "cannot be used as feature columns"),
+        (["x1", "x1"], "must not contain duplicates"),
+    ],
+)
+def test_preprocess_rejects_invalid_feature_columns(feature_cols, message):
+    df = pd.DataFrame(
+        {
+            "x1": [1.0, 2.0, 3.0, 4.0],
+            "treatment": [0, 1, 0, 1],
+            "outcome": [0.0, 1.0, 1.0, 0.0],
+        }
+    )
+
+    with pytest.raises(ValueError, match=message):
+        preprocess_data(df, feature_cols=feature_cols)
+
+
 def test_preprocess_raises_on_missing_arm_or_invalid_treatment():
     df_only_treated = pd.DataFrame(
         {"x1": [1.0, 2.0], "treatment": [1, 1], "outcome": [0.0, 1.0]}

@@ -92,6 +92,10 @@ class UpliftEvaluator:
         t = np.asarray(treatment).ravel()
         pred = np.asarray(uplift_pred, dtype=float).ravel()
 
+        if not np.isfinite(y).all():
+            raise ValueError("y_true must contain only finite values.")
+        if not np.isfinite(pred).all():
+            raise ValueError("uplift_pred must contain only finite values.")
         if not (len(y) == len(t) == len(pred)):
             raise ValueError("y_true, treatment, and uplift_pred must have equal length.")
         if len(y) == 0:
@@ -120,6 +124,8 @@ class UpliftEvaluator:
             tau = np.asarray(true_cate, dtype=float).ravel()
             if len(tau) != n_samples:
                 raise ValueError("true_cate must have the same length as y_true.")
+            if not np.isfinite(tau).all():
+                raise ValueError("true_cate must contain only finite values.")
             pehe = float(np.sqrt(np.mean((pred - tau) ** 2)))
             true_ate = float(np.mean(tau))
 
