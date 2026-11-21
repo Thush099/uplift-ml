@@ -1,6 +1,7 @@
 """CLI entry point for causal uplift modeling and S/T/X-learner benchmarking."""
 
 import argparse
+import math
 from typing import Dict, Optional
 
 import pandas as pd
@@ -26,9 +27,11 @@ def _format_benchmark_table(results: Dict[str, PipelineResult]) -> str:
         pehe_str = f"{r.pehe:.4f}" if r.pehe is not None else "n/a"
         top_u = r.uplift_by_decile[0].observed_uplift
         bot_u = r.uplift_by_decile[-1].observed_uplift
+        top_u_str = f"{top_u:+.4f}" if top_u is not None else "n/a"
+        bot_u_str = f"{bot_u:+.4f}" if bot_u is not None else "n/a"
         lines.append(
             f"{model_name:<12} {r.predicted_ate:>+10.4f} {true_ate_str:>10} {r.observed_ate:>+10.4f} "
-            f"{pehe_str:>8} {r.qini_coefficient:>8.4f} {r.auuc:>8.4f} {top_u:>+12.4f} {bot_u:>+12.4f}"
+            f"{pehe_str:>8} {r.qini_coefficient:>8.4f} {r.auuc:>8.4f} {top_u_str:>12} {bot_u_str:>12}"
         )
     return "\n".join(lines)
 
@@ -56,9 +59,10 @@ def _format_deciles(model_name: str, report: EvaluationReport) -> str:
         "-" * 58,
     ]
     for d in report.uplift_by_decile:
+        observed = f"{d.observed_uplift:+.4f}" if d.observed_uplift is not None else "n/a"
         lines.append(
             f"{d.decile:>6} {d.n_samples:>6} {d.n_treated:>8} {d.n_control:>8} "
-            f"{d.mean_predicted_uplift:>+12.4f} {d.observed_uplift:>+12.4f}"
+            f"{d.mean_predicted_uplift:>+12.4f} {observed:>12}"
         )
     return "\n".join(lines)
 
@@ -114,7 +118,32 @@ def build_parser() -> argparse.ArgumentParser:
         default=42,
         help="Random seed (default: 42).",
     )
+    parser.add_argument(
+        "--min-qini",
+        type=float,
+        default=None,
+        help=(
+            "Exit non-zero when any evaluated model's Qini coefficient is below "
+            "this threshold, so the benchmark can gate a CI job."
+        ),
+    )
     return parser
+
+
+def exit_code_for(reports: list[EvaluationReport], min_qini: Optional[float]) -> int:
+    """Map evaluation reports to a process exit code under a Qini gate.
+
+    Returns 0 when no threshold is given or every model meets it, and 1 when any
+    model's Qini coefficient is below the threshold. The threshold must be a
+    finite number; anything else raises ``ValueError`` so a typo cannot silently
+    disable gating. Qini coefficients are normalized against an oracle ordering,
+    so unlike a probability they may legitimately be negative.
+    """
+    if min_qini is None:
+        return 0
+    if not math.isfinite(min_qini):
+        raise ValueError(f"min_qini must be finite; got {min_qini!r}")
+    return 1 if any(r.qini_coefficient < min_qini for r in reports) else 0
 
 
 def main(argv: Optional[list[str]] = None) -> int:
@@ -128,7 +157,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         print(_format_benchmark_table(results))
         print(_format_subgroup_summary(df))
         print(_format_deciles("X-learner", results["X-learner"].report))
-        return 0
+        return exit_code_for([res.report for res in results.values()], args.min_qini)
 
     raw_df = load_data(args.data_path)
     true_cate = raw_df["true_cate"].to_numpy(dtype=float) if "true_cate" in raw_df.columns else None
@@ -148,7 +177,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         }
         print(_format_benchmark_table(results))
         print(_format_deciles("X-learner", results["X-learner"].report))
-        return 0
+        return exit_code_for([res.report for res in results.values()], args.min_qini)
 
     config = Config(
         data_path=args.data_path,
@@ -172,7 +201,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     if r.pehe is not None:
         print(f"PEHE (RMSE vs true CATE)={r.pehe:.4f}")
     print(_format_deciles(args.model_type, r))
-    return 0
+    return exit_code_for([r], args.min_qini)
 
 
 if __name__ == "__main__":

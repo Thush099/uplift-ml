@@ -1,6 +1,7 @@
 """Causal uplift evaluation metrics: ATE, uplift-by-decile, Qini, AUUC, and PEHE."""
 
 from dataclasses import asdict, dataclass, field
+from numbers import Integral
 from typing import Any, Dict, List, Optional
 
 import numpy as np
@@ -22,9 +23,9 @@ class DecileMetric:
     n_treated: int
     n_control: int
     mean_predicted_uplift: float
-    mean_outcome_treated: float
-    mean_outcome_control: float
-    observed_uplift: float
+    mean_outcome_treated: Optional[float]
+    mean_outcome_control: Optional[float]
+    observed_uplift: Optional[float]
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -76,9 +77,9 @@ class UpliftEvaluator:
     """Computes ranking, calibration, and heterogeneous effect metrics for uplift predictions."""
 
     def __init__(self, n_deciles: int = 10) -> None:
-        if n_deciles < 2:
-            raise ValueError("n_deciles must be at least 2.")
-        self.n_deciles = n_deciles
+        if isinstance(n_deciles, bool) or not isinstance(n_deciles, Integral) or n_deciles < 2:
+            raise ValueError("n_deciles must be an integer >= 2.")
+        self.n_deciles = int(n_deciles)
 
     def evaluate(
         self,
@@ -92,6 +93,10 @@ class UpliftEvaluator:
         t = np.asarray(treatment).ravel()
         pred = np.asarray(uplift_pred, dtype=float).ravel()
 
+        if not np.isfinite(y).all():
+            raise ValueError("y_true must contain only finite values.")
+        if not np.isfinite(pred).all():
+            raise ValueError("uplift_pred must contain only finite values.")
         if not (len(y) == len(t) == len(pred)):
             raise ValueError("y_true, treatment, and uplift_pred must have equal length.")
         if len(y) == 0:
@@ -120,6 +125,8 @@ class UpliftEvaluator:
             tau = np.asarray(true_cate, dtype=float).ravel()
             if len(tau) != n_samples:
                 raise ValueError("true_cate must have the same length as y_true.")
+            if not np.isfinite(tau).all():
+                raise ValueError("true_cate must contain only finite values.")
             pehe = float(np.sqrt(np.mean((pred - tau) ** 2)))
             true_ate = float(np.mean(tau))
 
@@ -221,9 +228,13 @@ class UpliftEvaluator:
             c_mask = t_bin == 0
             n_t = int(np.sum(t_mask))
             n_c = int(np.sum(c_mask))
-            y_t_mean = float(np.mean(y_bin[t_mask])) if n_t > 0 else float("nan")
-            y_c_mean = float(np.mean(y_bin[c_mask])) if n_c > 0 else float("nan")
-            obs_uplift = y_t_mean - y_c_mean if (n_t > 0 and n_c > 0) else float("nan")
+            y_t_mean = float(np.mean(y_bin[t_mask])) if n_t > 0 else None
+            y_c_mean = float(np.mean(y_bin[c_mask])) if n_c > 0 else None
+            obs_uplift = (
+                y_t_mean - y_c_mean
+                if y_t_mean is not None and y_c_mean is not None
+                else None
+            )
             deciles.append(
                 DecileMetric(
                     decile=idx,

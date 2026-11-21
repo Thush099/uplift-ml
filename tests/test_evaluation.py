@@ -1,9 +1,17 @@
 """Tests for UpliftEvaluator metrics (ATE, deciles, Qini, AUUC, PEHE)."""
 
+import json
+
 import numpy as np
 import pytest
 
 from src.evaluation import UpliftEvaluator
+
+
+@pytest.mark.parametrize("n_deciles", [1, 2.5, float("nan"), True])
+def test_evaluator_rejects_invalid_decile_count(n_deciles):
+    with pytest.raises(ValueError, match="n_deciles must be an integer >= 2"):
+        UpliftEvaluator(n_deciles=n_deciles)
 
 
 def test_evaluator_perfect_vs_reversed_ranking_and_pehe():
@@ -47,6 +55,50 @@ def test_evaluator_handles_tied_predictions_and_missing_true_cate():
     assert report.true_ate is None
     assert len(report.uplift_by_decile) == 4
     assert report.predicted_ate == pytest.approx(0.1)
+
+
+@pytest.mark.parametrize(
+    ("argument", "bad_values", "expected_message"),
+    [
+        ("y_true", [np.nan, 0.0], "y_true must contain only finite values."),
+        ("uplift_pred", [0.2, np.inf], "uplift_pred must contain only finite values."),
+        ("true_cate", [0.1, np.nan], "true_cate must contain only finite values."),
+    ],
+)
+def test_evaluator_rejects_non_finite_values(argument, bad_values, expected_message):
+    inputs = {
+        "y_true": np.array([1.0, 0.0]),
+        "treatment": np.array([1, 0]),
+        "uplift_pred": np.array([0.2, -0.1]),
+        "true_cate": np.array([0.2, -0.1]),
+    }
+    inputs[argument] = np.asarray(bad_values)
+
+    with pytest.raises(ValueError, match=expected_message):
+        UpliftEvaluator().evaluate(**inputs)
+
+
+def test_small_imbalanced_groups_report_unavailable_bin_uplift_as_none():
+    report = UpliftEvaluator(n_deciles=10).evaluate(
+        y_true=np.array([1.0, 0.0, 1.0, 0.0, 1.0]),
+        treatment=np.array([1, 0, 1, 0, 1]),
+        uplift_pred=np.array([0.9, 0.8, 0.7, 0.6, 0.5]),
+    )
+
+    assert len(report.uplift_by_decile) == 5
+    assert all(decile.n_samples == 1 for decile in report.uplift_by_decile)
+    assert all(
+        decile.mean_outcome_treated is None
+        for decile in report.uplift_by_decile
+        if decile.n_treated == 0
+    )
+    assert all(
+        decile.mean_outcome_control is None
+        for decile in report.uplift_by_decile
+        if decile.n_control == 0
+    )
+    assert all(decile.observed_uplift is None for decile in report.uplift_by_decile)
+    json.dumps(report.to_dict(), allow_nan=False)
 
 
 def test_evaluator_rejects_missing_arm():

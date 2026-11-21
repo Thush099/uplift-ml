@@ -44,7 +44,7 @@ Causal uplift modeling toolkit implementing **S-Learner**, **T-Learner**, and **
 ### Evaluation Metrics (`UpliftEvaluator`)
 
 - **Predicted & Observed ATE**: Mean predicted CATE vs difference-in-means $\bar{Y}_{T=1} - \bar{Y}_{T=0}$.
-- **Uplift-by-Decile**: Ranked decile breakdown from highest predicted uplift (Decile 1) to lowest (Decile 10).
+- **Uplift-by-Decile**: Ranked decile breakdown from highest predicted uplift (Decile 1) to lowest (Decile 10). Observed uplift is `n/a` when a bin lacks either treatment arm; the within-bin comparison is unestimable, not zero.
 - **Qini Coefficient**: Area above random targeting divided by optimal-minus-random Qini area.
 - **AUUC**: Area Under the Uplift Curve (normalized per sample, with gain over random baseline).
 - **PEHE**: Precision in Estimation of Heterogeneous Effect ($\sqrt{\text{mean}((\hat{\tau} - \tau)^2)}$) when ground-truth CATE is available.
@@ -74,6 +74,33 @@ python main.py \
 ```
 
 Use `--model-type all` to benchmark all three meta-learners on your CSV.
+
+### Benchmark and modelling flags
+
+| Flag | Default | Meaning |
+|---|---:|---|
+| `--demo` | off | Run the synthetic heterogeneous CATE benchmark |
+| `--n-samples` | `3000` | Synthetic sample count for benchmark mode |
+| `--data-path` | none | Input CSV dataset (omit for the synthetic benchmark) |
+| `--model-type` | — | `S-learner`, `T-learner`, `X-learner`, or `all` |
+| `--outcome-var` | `outcome` | Outcome column name |
+| `--treatment-var` | `treatment` | Binary `{0, 1}` treatment column name |
+| `--seed` | `42` | Random seed |
+
+Outcome and treatment columns must be finite: `nan`/`inf` entries are rejected with
+the offending row positions instead of being silently dropped, because dropping them
+could remove a treatment arm and yield an uninterpretable Qini score.
+
+### Gating a pipeline with `--min-qini`
+
+By default the CLI always exits `0`, so a CI job cannot tell a healthy model from a
+regressed one. `--min-qini FLOAT` exits non-zero when any evaluated model's Qini
+coefficient falls below the threshold, and the threshold must be a finite number
+(Qini is normalized against an oracle ordering, so it may legitimately be negative):
+
+```bash
+python main.py --data-path path/to/experiment.csv --min-qini 0.15
+```
 
 ### Benchmark Output (`python main.py`)
 
