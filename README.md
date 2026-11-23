@@ -138,3 +138,16 @@ Decile      N  Treated  Control  Pred Uplift   Obs Uplift
 ```bash
 pytest -v
 ```
+
+## Web UI
+
+A local uplift lab drives the real pipeline in the browser:
+
+```bash
+python ui/server.py            # http://127.0.0.1:8127
+```
+
+Train and compare S / T / X-learner meta-learners on the synthetic heterogeneous dataset or
+your own CSV, then read the Qini coefficient, AUUC gain, predicted-vs-observed uplift by
+decile, and a model comparison table. The server uses only the standard library and calls
+`UpliftPipeline`.

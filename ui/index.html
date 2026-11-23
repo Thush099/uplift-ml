@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Causal Uplift Lab — S/T/X learners, Qini curves</title>
+<style>
+  :root {
+    --bg: #f2f4f6;
+    --card: #ffffff;
+    --ink: #1b2430;
+    --ink-soft: #62707f;
+    --rule: #d4dae1;
+    --s: #2f6fb0;
+    --t: #b0602f;
+    --x: #2f8f6b;
+    --accent: #38507a;
+    --mono: "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+    --sans: "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.55 var(--sans); }
+  header { padding: 30px 26px 20px; background: var(--card); border-bottom: 1px solid var(--rule); }
+  header h1 { margin: 0; font: 600 clamp(22px, 3.4vw, 32px)/1.12 var(--serif); letter-spacing: -.015em; }
+  header h1 em { font-style: italic; color: var(--accent); }
+  header p { margin: 9px 0 0; max-width: 70ch; color: var(--ink-soft); font-size: 14.5px; }
+  .layout { display: grid; grid-template-columns: minmax(300px, 350px) 1fr; gap: 20px; padding: 20px 26px 56px; }
+  @media (max-width: 1000px) { .layout { grid-template-columns: 1fr; } }
+  .panel { background: var(--card); border: 1px solid var(--rule); border-radius: 5px; padding: 18px 20px; }
+  .panel + .panel { margin-top: 16px; }
+  .panel h2 { margin: 0 0 3px; font: 600 17px/1.25 var(--serif); }
+  .meta { margin: 0 0 12px; color: var(--ink-soft); font-size: 12.5px; }
+  label { display: block; font: 600 11px/1 var(--sans); letter-spacing: .07em; text-transform: uppercase; color: var(--ink-soft); margin: 13px 0 6px; }
+  input[type="number"], textarea {
+    width: 100%; border: 1px solid var(--rule); border-radius: 4px; background: #fdfdfe;
+    color: var(--ink); font: 13px/1.5 var(--mono); padding: 8px 10px;
+  }
+  textarea { resize: vertical; min-height: 80px; }
+  input:focus-visible, button:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .checks { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+  .checks label { display: flex; align-items: center; gap: 6px; margin: 0; text-transform: none; letter-spacing: 0; font-size: 13px; font-weight: 500; color: var(--ink); }
+  .checks input { width: 16px; height: 16px; }
+  .btnrow { margin-top: 16px; }
+  button { width: 100%; border: 0; border-radius: 4px; cursor: pointer; padding: 12px 14px; font: 600 14.5px/1 var(--sans); background: var(--accent); color: #fff; }
+  button:hover { background: #2c3f61; }
+  button:disabled { opacity: .55; cursor: wait; }
+  .error { margin-top: 12px; padding: 10px 12px; border-left: 3px solid #b0483c; background: #f6e2df; color: #b0483c; font-size: 13px; white-space: pre-wrap; }
+
+  .statgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1px; background: var(--rule); border: 1px solid var(--rule); border-radius: 5px; overflow: hidden; }
+  .stat { background: var(--card); padding: 13px 15px; }
+  .stat .k { font: 600 10.5px/1 var(--sans); letter-spacing: .06em; text-transform: uppercase; color: var(--ink-soft); }
+  .stat .v { font: 600 23px/1.15 var(--mono); margin-top: 5px; font-variant-numeric: tabular-nums; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--rule); }
+  th { font: 600 10.5px/1 var(--sans); letter-spacing: .05em; text-transform: uppercase; color: var(--ink-soft); background: #eef1f4; }
+  td.num { font-family: var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .wrap { overflow-x: auto; }
+  .model-badge { display: inline-block; padding: 2px 9px; border-radius: 11px; font: 600 11px/1.7 var(--sans); color: #fff; }
+  .good { color: var(--x); font-weight: 600; }
+  .bad { color: #b0483c; font-weight: 600; }
+  svg { width: 100%; height: auto; display: block; }
+  details { margin-top: 8px; }
+  summary { cursor: pointer; font-size: 12.5px; color: var(--accent); font-weight: 600; }
+  pre { background: #1e2530; color: #dfe4ea; padding: 12px; border-radius: 4px; overflow: auto; font: 11px/1.5 var(--mono); max-height: 300px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Causal <em>uplift</em> lab</h1>
+  <p>Train and compare meta-learners (S / T / X) that estimate heterogeneous treatment effects.
+  Ranked by predicted uplift, the decile table shows whether the model concentrates lift where
+  it claims — read against the Qini curve and AUUC gain over random targeting.</p>
+</header>
+
+<div class="layout">
+  <form class="panel" id="form">
+    <h2>Experiment</h2>
+    <p class="meta">Runs <code>UpliftPipeline</code> from <code>src/pipeline.py</code>.</p>
+
+    <label>Models to compare</label>
+    <div class="checks">
+      <label><input type="checkbox" class="model" value="S-learner" checked> S-learner</label>
+      <label><input type="checkbox" class="model" value="T-learner" checked> T-learner</label>
+      <label><input type="checkbox" class="model" value="X-learner" checked> X-learner</label>
+    </div>
+
+    <label for="n_samples">Sample size (synthetic)</label>
+    <input type="number" id="n_samples" value="2000" min="50" max="20000">
+
+    <label for="seed">Random seed</label>
+    <input type="number" id="seed" value="42">
+
+    <label for="csv">Upload CSV (optional — overrides synthetic)</label>
+    <textarea id="csv" placeholder="x1,x2,treatment,outcome&#10;0.5,1.2,1,1"></textarea>
+
+    <div class="btnrow">
+      <button type="submit" id="run">Run experiment</button>
+    </div>
+    <div class="error" id="error" hidden></div>
+  </form>
+
+  <section>
+    <div class="panel" id="summary-panel" hidden>
+      <h2>Best model by Qini coefficient</h2>
+      <p class="meta" id="summary-meta"></p>
+      <div class="statgrid" id="statgrid"></div>
+    </div>
+
+    <div class="panel" id="qini-panel" hidden>
+      <h2>Uplift by decile</h2>
+      <p class="meta">Observed vs predicted uplift across ranked deciles (best model).</p>
+      <div id="qini-chart"></div>
+    </div>
+
+    <div class="panel" id="compare-panel" hidden>
+      <h2>Model comparison</h2>
+      <div class="wrap"><table id="compare-table"></table></div>
+    </div>
+
+    <div class="panel" id="decile-panel" hidden>
+      <h2>Decile detail</h2>
+      <div class="wrap"><table id="decile-table"></table></div>
+    </div>
+
+    <details id="raw-details" hidden>
+      <summary>Show raw JSON result</summary>
+      <pre id="raw"></pre>
+    </details>
+  </section>
+</div>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+  const num = (x, d = 3) => x == null ? "—" : Number(x).toFixed(d);
+  const COLORS = { "S-learner": "var(--s)", "T-learner": "var(--t)", "X-learner": "var(--x)" };
+
+  function renderSummary(bestName, rep) {
+    const stats = [
+      ["Best model", bestName],
+      ["Qini coefficient", num(rep.qini_coefficient)],
+      ["AUUC gain over random", num(rep.auuc_gain)],
+      ["Predicted ATE", num(rep.predicted_ate)],
+      ["Observed ATE", num(rep.observed_ate)],
+      ["Samples", rep.n_samples.toLocaleString()],
+    ];
+    $("statgrid").innerHTML = stats.map(([k, v]) =>
+      `<div class="stat"><div class="k">${esc(k)}</div><div class="v">${esc(v)}</div></div>`).join("");
+    $("summary-meta").textContent =
+      `${rep.n_treated.toLocaleString()} treated / ${rep.n_control.toLocaleString()} control`;
+    $("summary-panel").hidden = false;
+  }
+
+  function renderDecileChart(deciles) {
+    if (!deciles || !deciles.length) { $("qini-panel").hidden = true; return; }
+    const W = 620, H = 260, pad = 46;
+    const maxVal = Math.max(...deciles.map(d => Math.max(d.observed_uplift ?? 0, d.mean_predicted_uplift)), 0.1) * 1.15;
+    const bw = (W - 2 * pad) / deciles.length;
+    const y = (v) => H - pad - (H - 2 * pad) * (v / maxVal);
+    const bars = deciles.map((d, i) => {
+      const x0 = pad + i * bw;
+      const yo = y(Math.max(0, d.observed_uplift ?? 0));
+      const yp = y(Math.max(0, d.mean_predicted_uplift));
+      return `
+        <rect x="${x0 + 3}" y="${yo}" width="${bw / 2 - 5}" height="${Math.max(1, H - pad - yo)}" fill="var(--x)" opacity="0.85"/>
+        <rect x="${x0 + bw / 2 + 1}" y="${yp}" width="${bw / 2 - 5}" height="${Math.max(1, H - pad - yp)}" fill="var(--accent)" opacity="0.7"/>
+        <text x="${x0 + bw / 2}" y="${H - pad + 15}" font-size="10" fill="var(--ink-soft)" text-anchor="middle">${d.decile}</text>`;
+    }).join("");
+    const grid = [0, 0.5, 1].map((f) => {
+      const yy = y(maxVal * f).toFixed(1);
+      return `<line x1="${pad}" x2="${W - pad}" y1="${yy}" y2="${yy}" stroke="var(--rule)"/>
+              <text x="6" y="${Number(yy) + 4}" font-size="10" fill="var(--ink-soft)">${(maxVal * f).toFixed(2)}</text>`;
+    }).join("");
+    $("qini-chart").innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Observed versus predicted uplift by decile">
+      ${grid}${bars}
+      <text x="${pad}" y="${H - 8}" font-size="11" fill="var(--x)">■ observed uplift</text>
+      <text x="${pad + 150}" y="${H - 8}" font-size="11" fill="var(--accent)">■ predicted uplift</text>
+    </svg>`;
+    $("qini-panel").hidden = false;
+  }
+
+  function renderCompare(models) {
+    const rows = Object.entries(models).map(([name, m]) => ({ name, rep: m.report }));
+    rows.sort((a, b) => b.rep.qini_coefficient - a.rep.qini_coefficient);
+    $("compare-table").innerHTML =
+      `<thead><tr><th>Model</th><th>Qini</th><th>Qini AUC</th><th>AUUC</th><th>AUUC gain</th><th>PEHE</th><th>Predicted ATE</th></tr></thead><tbody>` +
+      rows.map(({ name, rep }) => `<tr>
+        <td><span class="model-badge" style="background:${COLORS[name] || "var(--accent)"}">${esc(name)}</span></td>
+        <td class="num ${rep.qini_coefficient > 0 ? "good" : "bad"}">${num(rep.qini_coefficient)}</td>
+        <td class="num">${num(rep.qini_auc)}</td>
+        <td class="num">${num(rep.auuc)}</td>
+        <td class="num ${rep.auuc_gain > 0 ? "good" : "bad"}">${num(rep.auuc_gain)}</td>
+        <td class="num">${rep.pehe == null ? "—" : num(rep.pehe)}</td>
+        <td class="num">${num(rep.predicted_ate)}</td>
+      </tr>`).join("") + `</tbody>`;
+    $("compare-panel").hidden = false;
+    return rows[0];
+  }
+
+  function renderDeciles(deciles) {
+    if (!deciles || !deciles.length) { $("decile-panel").hidden = true; return; }
+    $("decile-table").innerHTML =
+      `<thead><tr><th>Decile</th><th>N</th><th>Treated</th><th>Control</th><th>Predicted uplift</th><th>Observed uplift</th></tr></thead><tbody>` +
+      deciles.map((d) => `<tr>
+        <td class="num">${d.decile}</td>
+        <td class="num">${d.n_samples}</td>
+        <td class="num">${d.n_treated}</td>
+        <td class="num">${d.n_control}</td>
+        <td class="num">${num(d.mean_predicted_uplift)}</td>
+        <td class="num ${d.observed_uplift == null ? "" : (d.observed_uplift > 0 ? "good" : "bad")}">${d.observed_uplift == null ? "—" : num(d.observed_uplift)}</td>
+      </tr>`).join("") + `</tbody>`;
+    $("decile-panel").hidden = false;
+  }
+
+  $("form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const btn = $("run");
+    btn.disabled = true; btn.textContent = "Running…";
+    $("error").hidden = true;
+    const models = [...document.querySelectorAll(".model:checked")].map((c) => c.value);
+    try {
+      const res = await fetch("/api/run", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model_types: models.length ? models : null,
+          n_samples: Number($("n_samples").value),
+          seed: Number($("seed").value),
+          csv_text: $("csv").value.trim() || null,
+        }),
+      });
+      const payload = await res.json();
+      if (!res.ok) throw new Error(payload.error || `Request failed (${res.status})`);
+      const best = renderCompare(payload.models);
+      renderSummary(best.name, best.rep);
+      renderDecileChart(best.rep.uplift_by_decile);
+      renderDeciles(best.rep.uplift_by_decile);
+      $("raw").textContent = JSON.stringify(payload, null, 2);
+      $("raw-details").hidden = false;
+    } catch (err) {
+      $("error").textContent = err.message;
+      $("error").hidden = false;
+    } finally {
+      btn.disabled = false; btn.textContent = "Run experiment";
+    }
+  });
+
+  $("form").dispatchEvent(new Event("submit"));
+})();
+</script>
+</body>
+</html>
