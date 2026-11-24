@@ -64,9 +64,19 @@
   details { margin-top: 8px; }
   summary { cursor: pointer; font-size: 12.5px; color: var(--accent); font-weight: 600; }
   pre { background: #1e2530; color: #dfe4ea; padding: 12px; border-radius: 4px; overflow: auto; font: 11px/1.5 var(--mono); max-height: 300px; }
+  .skip-link {
+    position: absolute; left: -9999px; top: 0; z-index: 100;
+    background: var(--accent, #2b6cb0); color: #fff; padding: 10px 16px;
+    border-radius: 0 0 6px 0; font: 600 13px/1 var(--sans); text-decoration: none;
+  }
+  .skip-link:focus { left: 0; }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { transition: none !important; animation: none !important; }
+  }
 </style>
 </head>
 <body>
+<a class="skip-link" href="#form">Skip to controls</a>
 <header>
   <h1>Causal <em>uplift</em> lab</h1>
   <p>Train and compare meta-learners (S / T / X) that estimate heterogeneous treatment effects.
@@ -74,7 +84,7 @@
   it claims — read against the Qini curve and AUUC gain over random targeting.</p>
 </header>
 
-<div class="layout">
+<main class="layout">
   <form class="panel" id="form">
     <h2>Experiment</h2>
     <p class="meta">Runs <code>UpliftPipeline</code> from <code>src/pipeline.py</code>.</p>
@@ -98,7 +108,7 @@
     <div class="btnrow">
       <button type="submit" id="run">Run experiment</button>
     </div>
-    <div class="error" id="error" hidden></div>
+    <div class="error" id="error" role="alert" hidden></div>
   </form>
 
   <section>
@@ -129,7 +139,7 @@
       <pre id="raw"></pre>
     </details>
   </section>
-</div>
+</main>
 
 <script>
 (() => {
