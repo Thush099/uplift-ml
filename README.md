@@ -1,5 +1,7 @@
 # Uplift ML
 
+[![CI](https://github.com/Thush099/uplift-ml/actions/workflows/tests.yml/badge.svg)](https://github.com/Thush099/uplift-ml/actions/workflows/tests.yml)
+
 Causal uplift modeling toolkit implementing **S-Learner**, **T-Learner**, and **X-Learner** meta-learners with **Qini coefficient**, **AUUC**, **uplift-by-decile**, and **PEHE** evaluation.
 
 ## Causal Meta-Learner Architecture
