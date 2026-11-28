@@ -1,5 +1,7 @@
 # Uplift ML
 
+[![CI](https://github.com/Thush099/uplift-ml/actions/workflows/tests.yml/badge.svg)](https://github.com/Thush099/uplift-ml/actions/workflows/tests.yml)
+
 Causal uplift modeling toolkit implementing **S-Learner**, **T-Learner**, and **X-Learner** meta-learners with **Qini coefficient**, **AUUC**, **uplift-by-decile**, and **PEHE** evaluation.
 
 ## Causal Meta-Learner Architecture
@@ -138,3 +140,16 @@ Decile      N  Treated  Control  Pred Uplift   Obs Uplift
 ```bash
 pytest -v
 ```
+
+## Web UI
+
+A local uplift lab drives the real pipeline in the browser:
+
+```bash
+python ui/server.py            # http://127.0.0.1:8127
+```
+
+Train and compare S / T / X-learner meta-learners on the synthetic heterogeneous dataset or
+your own CSV, then read the Qini coefficient, AUUC gain, predicted-vs-observed uplift by
+decile, and a model comparison table. The server uses only the standard library and calls
+`UpliftPipeline`.

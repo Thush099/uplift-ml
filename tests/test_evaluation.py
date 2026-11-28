@@ -108,3 +108,24 @@ def test_evaluator_rejects_missing_arm():
             treatment=np.array([1, 1]),
             uplift_pred=np.array([0.2, 0.3]),
         )
+
+
+def test_pipeline_contracts_and_run(tmp_path) -> None:
+    """The learner factory rejects unknown types, run() requires a data path, and a
+    real CSV round-trips through the single-model pipeline."""
+    from config import Config
+    from src.pipeline import UpliftPipeline, _build_learner
+    from src.utils import generate_synthetic_uplift_data
+
+    with pytest.raises(ValueError, match="Unsupported model_type"):
+        _build_learner("nope", Config())
+    with pytest.raises(ValueError, match="data_path must be set"):
+        UpliftPipeline(Config()).run()
+
+    df = generate_synthetic_uplift_data(n_samples=120, random_state=2)
+    csv_path = tmp_path / "data.csv"
+    df.to_csv(csv_path, index=False)
+    result = UpliftPipeline(Config(data_path=str(csv_path), model_type="T-learner")).run()
+    assert result.model_type == "T-learner"
+    assert result.feature_names, "features must flow through to the result"
+    assert result.report is not None
