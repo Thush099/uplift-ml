@@ -57,6 +57,9 @@ pip install -r requirements.txt
 
 ## CLI Usage
 
+Invalid arguments (non-finite `--min-qini`, a missing dataset file) exit with code `2` and a
+clean message before any model fitting runs.
+
 Run the out-of-the-box synthetic heterogeneous CATE benchmark (comparing `S-learner`, `T-learner`, and `X-learner` across `persuadables`, `sure_things`, `sleeping_dogs`, and `lost_causes` subgroups):
 
 ```bash

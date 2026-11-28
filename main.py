@@ -151,6 +151,9 @@ def main(argv: Optional[list[str]] = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
 
+    if args.min_qini is not None and not math.isfinite(args.min_qini):
+        parser.error(f"--min-qini must be finite; got {args.min_qini!r}")
+
     if args.demo or args.data_path is None:
         config = Config(model_type="all", random_state=args.seed)
         df, results = run_benchmark(n_samples=args.n_samples, config=config)
@@ -159,7 +162,10 @@ def main(argv: Optional[list[str]] = None) -> int:
         print(_format_deciles("X-learner", results["X-learner"].report))
         return exit_code_for([res.report for res in results.values()], args.min_qini)
 
-    raw_df = load_data(args.data_path)
+    try:
+        raw_df = load_data(args.data_path)
+    except (FileNotFoundError, ValueError) as exc:
+        parser.error(str(exc))
     true_cate = raw_df["true_cate"].to_numpy(dtype=float) if "true_cate" in raw_df.columns else None
 
     if args.model_type == "all":

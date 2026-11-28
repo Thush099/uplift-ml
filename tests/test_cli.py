@@ -120,3 +120,21 @@ def test_exit_code_rejects_non_finite_threshold():
 def test_cli_min_qini_gates_the_run():
     assert main(["--n-samples", "400", "--min-qini", "-1.0"]) == 0
     assert main(["--n-samples", "400", "--min-qini", "10.0"]) == 1
+
+
+def test_cli_non_finite_min_qini_reports_clean_error(capsys):
+    import pytest
+
+    with pytest.raises(SystemExit) as excinfo:
+        main(["--min-qini", "nan"])
+    assert excinfo.value.code == 2
+    assert "min-qini" in capsys.readouterr().err
+
+
+def test_cli_missing_dataset_reports_clean_error(tmp_path, capsys):
+    import pytest
+
+    with pytest.raises(SystemExit) as excinfo:
+        main(["--data-path", str(tmp_path / "nope.csv")])
+    assert excinfo.value.code == 2
+    assert "Dataset file not found" in capsys.readouterr().err
