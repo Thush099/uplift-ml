@@ -157,3 +157,38 @@ def test_run_benchmark_returns_one_result_per_requested_model():
     result = results["S-learner"]
     assert math.isfinite(result.report.qini_coefficient)
     assert result.report.n_samples > 0
+
+
+def test_preprocess_data_boundary_rejections() -> None:
+    """Every invalid input raises a typed error with a clear message before any modeling."""
+    df = pd.DataFrame({"x": [1.0, 2.0], "treatment": [0, 1], "outcome": [0.0, 1.0]})
+
+    with pytest.raises(TypeError, match="Expected pandas.DataFrame"):
+        preprocess_data([1, 2])
+    with pytest.raises(ValueError, match="Outcome column 'nope' not found"):
+        preprocess_data(df, outcome_var="nope")
+    with pytest.raises(ValueError, match="Treatment column 'nope' not found"):
+        preprocess_data(df, treatment_var="nope")
+    with pytest.raises(ValueError, match=r"Feature column\(s\) not found"):
+        preprocess_data(df, feature_cols=["x", "missing"])
+    with pytest.raises(ValueError, match="cannot be used as feature columns"):
+        preprocess_data(df, feature_cols=["x", "outcome"])
+    with pytest.raises(ValueError, match="must not contain duplicates"):
+        preprocess_data(df, feature_cols=["x", "x"])
+    no_features = pd.DataFrame({"treatment": [0, 1], "outcome": [0.0, 1.0]})
+    with pytest.raises(ValueError, match="At least one feature column"):
+        preprocess_data(no_features)
+
+
+def test_synthetic_generator_guarantees_both_arms() -> None:
+    """The boundary rejects extreme probabilities outright; for near-extreme draws
+    on small samples the generator still forces both arms to exist."""
+    with pytest.raises(ValueError, match="strictly between 0 and 1"):
+        generate_synthetic_uplift_data(n_samples=20, treatment_prob=0.0)
+    with pytest.raises(ValueError, match="strictly between 0 and 1"):
+        generate_synthetic_uplift_data(n_samples=20, treatment_prob=1.0)
+    for prob in (0.01, 0.99):
+        df = generate_synthetic_uplift_data(n_samples=20, treatment_prob=prob, random_state=1)
+        assert set(df["treatment"].unique()) == {0, 1}, (
+            f"treatment_prob={prob} must still produce both arms"
+        )

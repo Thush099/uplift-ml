@@ -94,3 +94,22 @@ def test_predict_before_fit_and_factory_validation():
 
     with pytest.raises(ValueError, match="Unknown model_type"):
         UpliftModel("Invalid-learner")
+
+
+def test_uplift_model_wrapper_contract() -> None:
+    """UpliftModel rejects unknown learners and passes fit/predict through."""
+    import numpy as np
+
+    from src.models import UpliftModel
+
+    with pytest.raises(ValueError, match="Unknown model_type"):
+        UpliftModel(model_type="nope")
+
+    X = np.array([[0.1], [0.2], [0.3], [0.4]] * 5)
+    treatment = np.array([0, 1] * 10)
+    outcome = np.array([0.0, 1.0] * 10)
+    model = UpliftModel(model_type="T-learner", random_state=0)
+    assert model.fit(X, treatment, outcome) is model
+    preds = model.predict(X)
+    assert preds.shape == (len(X),)
+    assert np.isfinite(preds).all()
